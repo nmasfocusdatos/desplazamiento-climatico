@@ -1,0 +1,798 @@
+---
+title: "Exploración de variables y estados: TerraClimate"
+author: "Isaac Arroyo"
+format:
+  html:
+    reference-location: margin
+    df-print: kable
+    fig-width: 8
+    fig-asp: 0.75
+    fontsize: "1.1em"
+    code-fold: true
+    code-summary: "Código (R)"
+execute:
+  warning: false
+  echo: false
+---
+
+> **Nota**  
+> La exploración y análisis de los datos tuvo corte cuando la actualización más reciente de las variables climatológicas de TerraClimate era hasta el 2021. La actualización de TerraClimate al 2022 fue aproximadamente un mes depués.
+
+
+```{r}
+library(tidyverse)
+library(scales)
+library(gghighlight)
+library(gt)
+library(MetBrewer)
+#setwd("./docs/")
+```
+
+```{r LOAD-PROCESS_DATA_TERRA-CLIMATE}
+# = = Entidades = = #
+path_zscore_temp_max_ent <- "./../datos/ee_terraclimate_imports/ts_zscore_tmmx_mean_ent_month_terraclimate.csv"
+path_zscore_temp_min_ent <- "./../datos/ee_terraclimate_imports/ts_zscore_tmmn_mean_ent_month_terraclimate.csv"
+path_anomaly_temp_max_ent <- "./../datos/ee_terraclimate_imports/ts_anomaly_tmmx_mean_ent_month_terraclimate.csv"
+path_anomaly_temp_min_ent <- "./../datos/ee_terraclimate_imports/ts_anomaly_tmmn_mean_ent_month_terraclimate.csv"
+path_anomalies_pr_ent <- "./../datos/ee_terraclimate_imports/ts_anomaly_pr_mean_ent_month_terraclimate.csv"
+path_zscore_def_ent <- "./../datos/ee_terraclimate_imports/ts_zscore_def_mean_ent_month_terraclimate.csv"
+path_mean_pdsi_ent <- "./../datos/ee_terraclimate_imports/ts_pdsi_mean_ent_month_terraclimate.csv"
+ignore_columns <- c("system:index",".geo")
+
+# - - #
+temp_max_zscore_ent <- read_csv(path_zscore_temp_max_ent) %>%
+  select(!ignore_columns) %>%
+  pivot_longer(cols = 1:12, names_to = "date_month", values_to = "zscore_tmmx_mean") %>%
+  janitor::clean_names()
+
+temp_min_zscore_ent <- read_csv(path_zscore_temp_min_ent) %>%
+  select(!ignore_columns) %>%
+  pivot_longer(cols = 1:12, names_to = "date_month", values_to = "zscore_tmmn_mean") %>%
+  janitor::clean_names()
+
+temp_max_anomaly_ent <- read_csv(path_anomaly_temp_max_ent) %>%
+    select(!ignore_columns) %>%
+    pivot_longer(cols = 1:12, names_to = "date_month", values_to = "anomaly_tmmx_mean") %>%
+    janitor::clean_names()
+
+temp_min_anomaly_ent <- read_csv(path_anomaly_temp_min_ent) %>%
+    select(!ignore_columns) %>%
+    pivot_longer(cols = 1:12, names_to = "date_month", values_to = "anomaly_tmmn_mean") %>%
+    janitor::clean_names()
+
+precipitation_anomalies_ent <- read_csv(path_anomalies_pr_ent) %>%
+  select(!ignore_columns) %>%
+  pivot_longer(cols = 1:12, names_to = "date_month", values_to = "anomaly_value_perc_precipitation") %>%
+  janitor::clean_names()
+
+def_zscore_ent <-read_csv(path_zscore_def_ent) %>%
+  select(!ignore_columns) %>%
+  pivot_longer(cols = 1:12, names_to = "date_month", values_to = "zscore_value_def") %>%
+  janitor::clean_names()
+
+pdsi_mean_ent <- read_csv(path_mean_pdsi_ent) %>%
+  select(!ignore_columns) %>%
+  pivot_longer(cols = 1:12, names_to = "date_month", values_to = "mean_value_pdsi") %>%
+  janitor::clean_names()
+
+df_climate_vars_date_year_month_all_ent <- temp_max_zscore_ent %>% select(!cve_ent) %>%
+  left_join(temp_min_zscore_ent %>% select(!c(nomgeo,cve_ent)),
+            by = join_by(cvegeo, date_year, date_month)) %>%
+  left_join(temp_max_anomaly_ent %>% select(!c(nomgeo,cve_ent)),
+            by = join_by(cvegeo, date_year, date_month)) %>%
+  left_join(temp_min_anomaly_ent %>% select(!c(nomgeo,cve_ent)),
+            by = join_by(cvegeo, date_year, date_month)) %>%
+  left_join(precipitation_anomalies_ent %>% select(!c(nomgeo,cve_ent)),
+            by = join_by(cvegeo, date_year, date_month)) %>%
+  left_join(def_zscore_ent %>% select(!c(nomgeo,cve_ent)),
+            by = join_by(cvegeo, date_year, date_month)) %>%
+  left_join(pdsi_mean_ent %>% select(!c(nomgeo,cve_ent)),
+            by = join_by(cvegeo, date_year, date_month)) %>%
+  filter(date_year < 2022) %>%
+  filter(date_year >= 1990)
+
+
+# = = Nacional = = # - > Apoyo para la visualizacion y comparacion
+path_anomaly_temp_max_nac <- "./../datos/ee_terraclimate_imports/ts_anomaly_tmmx_mean_nac_month_terraclimate.csv"
+path_anomaly_temp_min_nac <- "./../datos/ee_terraclimate_imports/ts_anomaly_tmmn_mean_nac_month_terraclimate.csv"
+path_anomalies_pr_nac <- "./../datos/ee_terraclimate_imports/ts_anomaly_pr_mean_nac_month_terraclimate.csv"
+path_mean_pdsi_nac <- "./../datos/ee_terraclimate_imports/ts_pdsi_mean_nac_month_terraclimate.csv"
+#path_zscore_def_nac <- "./../datos/ee_terraclimate_imports/ts_zscore_def_mean_nac_month_terraclimate.csv"
+
+# - - #
+temp_max_anomaly_nac <- read_csv(path_anomaly_temp_max_nac) %>%
+    select(!ignore_columns) %>%
+    pivot_longer(cols = 1:12, names_to = "date_month", values_to = "anomaly_tmmx_mean") %>%
+    janitor::clean_names() %>%
+    rename(nomgeo = country_na) %>%
+    mutate(cvegeo = "00") %>%
+    select(cvegeo, nomgeo, date_year, date_month, anomaly_tmmx_mean)
+
+temp_min_anomaly_nac <- read_csv(path_anomaly_temp_min_nac) %>%
+    select(!ignore_columns) %>%
+    pivot_longer(cols = 1:12, names_to = "date_month", values_to = "anomaly_tmmn_mean") %>%
+    janitor::clean_names() %>%
+    rename(nomgeo = country_na) %>%
+    mutate(cvegeo = "00") %>%
+    select(cvegeo, nomgeo, date_year, date_month, anomaly_tmmn_mean)
+
+precipitation_anomalies_nac <- read_csv(path_anomalies_pr_nac) %>%
+    select(!ignore_columns) %>%
+    pivot_longer(cols = 1:12, names_to = "date_month", values_to = "anomaly_value_perc_precipitation") %>%
+    janitor::clean_names() %>%
+    rename(nomgeo = country_na) %>%
+    mutate(cvegeo = "00") %>%
+    select(cvegeo, nomgeo, date_year, date_month, anomaly_value_perc_precipitation)
+
+pdsi_mean_nac <- read_csv(path_mean_pdsi_nac) %>%
+    select(!ignore_columns) %>%
+    pivot_longer(cols = 1:12, names_to = "date_month", values_to = "mean_value_pdsi") %>%
+    janitor::clean_names() %>%
+    rename(nomgeo = country_na) %>%
+    mutate(cvegeo = "00") %>%
+    select(cvegeo, nomgeo, date_year, date_month, mean_value_pdsi)
+
+df_climate_vars_date_year_month_all_nac <- temp_max_anomaly_nac %>%
+  left_join(temp_min_anomaly_nac %>% select(!nomgeo),
+            by = join_by(cvegeo, date_year, date_month)) %>%
+  left_join(precipitation_anomalies_nac %>% select(!nomgeo),
+            by = join_by(cvegeo, date_year, date_month)) %>%
+  left_join(pdsi_mean_nac %>% select(!nomgeo),
+            by = join_by(cvegeo, date_year, date_month)) %>%
+  filter(date_year < 2022) %>%
+  filter(date_year >= 1990)
+
+
+
+# = = Combinar todo en uno = = #
+
+df_climate_date_year_month_nac_ent <- bind_rows(df_climate_vars_date_year_month_all_nac,
+                                                df_climate_vars_date_year_month_all_ent) %>% 
+                                      mutate(date_year_month = ymd(paste0(date_year,date_month,"15"))) %>% 
+                                      select(!c(date_year,date_month)) %>% 
+                                      relocate(date_year_month, .after = nomgeo) %>%
+                                      mutate(nomgeo = if_else(cvegeo == "00", "Nacional", nomgeo))
+
+```
+
+# Variables climatológicas a través del tiempo
+
+Ya se exploró la relación que tienen las variables entre sí, pero lo que distingue a este conjunto de datos el comportamiento de dada una de ellas a través del tiempo.
+
+> **Nota de las gráficas:**
+> 
+> En todas las visualizaciones de esta sección cada línea es un Estado del país. Se aclarará en el subtítulo de cada una esta información así como si llega a haber más.
+
+## Comportamiento de temperaturas
+
+```{r}
+df_climate_date_year_month_nac_ent %>%
+  filter(cvegeo != "00") %>%
+  ggplot(aes(x = date_year_month,
+             y = zscore_tmmx_mean,
+             color = nomgeo)) +
+  geom_hline(yintercept = 0) +
+  geom_line(alpha = 0.4) +
+  scale_y_continuous(breaks = c(-3,-2,-1,0,1,2,3,4), labels = label_number(suffix = "σ")) +
+  scale_x_date(date_breaks = "4 years", labels = label_date_short()) +
+  scale_colour_manual(values = met.brewer("OKeeffe2", n = 32)) +
+  coord_cartesian(ylim = c(-3,4)) +
+  labs(title = "Comportamiento de la temperatura máxima",
+       subtitle = "Cada línea es un estado",
+       caption = "Datos: TerraClimate a través de Google Earth Engine") +
+  theme_classic() +
+  theme(
+    legend.position = "none",
+    plot.title.position = "plot",
+    plot.caption.position = "plot",
+    axis.title = element_blank()
+  )
+```
+
+```{r}
+df_climate_date_year_month_nac_ent %>%
+  filter(cvegeo != "00") %>%
+  ggplot(aes(x = date_year_month,
+             y = zscore_tmmn_mean,
+             color = nomgeo)) +
+  geom_hline(yintercept = 0) +
+  geom_line(alpha = 0.4) +
+  scale_y_continuous(breaks = c(-3,-2,-1,0,1,2,3,4), labels = label_number(suffix = "σ")) +
+  scale_x_date(date_breaks = "4 years", labels = label_date_short()) +
+  scale_colour_manual(values = met.brewer("OKeeffe2", n = 32)) +
+  coord_cartesian(ylim = c(-3,4)) +
+  labs(title = "Comportamiento de la temperatura mínima",
+       subtitle = "Cada línea es un estado",
+       caption = "Datos: TerraClimate a través de Google Earth Engine") +
+  theme_classic() +
+  theme(
+    legend.position = "none",
+    plot.title.position = "plot",
+    plot.caption.position = "plot",
+    axis.title = element_blank()
+  )
+```
+
+Es importante reclarar que lo que se observa es el **Z-score**, el cual no cuenta con unidades físicas (es decir, no representa °C), sin embargo sus unidades si representan **comportamiento _esperado_**.
+
+Cada persona tiene su propio criterio sobre como usar esta métrica y para este trabajo, se toman los siguientes rangos de valores:
+
+- Entre -1σ y +1σ: Comportamiento dentro del comportamiento histórico/referencia.
+- Entre 1σ y 2σ: Por encima del comportamiento histórico/referencia.
+- Por encima de 2σ: Muy por encima del comportamiento histórico/referencia.
+- Entre -1σ y -2σ: Por debajo del comportamiento histórico/referencia.
+- Por debajo de -2σ: Muy por debajo del comportamiento histórico/referencia.
+
+Se puede observar que, a pesar de que no todos los estados tienen comportamiento por encima de la referencia histórica cada mes en la última decada, se puede ver que a partir del 2016, un gran porcentaje de los estados muestan al menos, valores por encima de 0σ en sus valores mínimos mensuales. Esto se ve por igual en el comportamiento de la temperatura máxima como la mínima.
+
+## Comportamiento de lluvias
+
+```{r}
+df_climate_date_year_month_nac_ent %>% 
+  filter(cvegeo != "00") %>%
+  ggplot(aes(x = date_year_month,
+             y = anomaly_value_perc_precipitation,
+             color = nomgeo)) +
+  geom_hline(yintercept = 0) +
+  geom_line(alpha = 0.4) +
+  scale_y_continuous(labels = label_percent()) +
+  scale_x_date(date_breaks = "4 years", labels = label_date_short()) +
+  scale_colour_manual(values = met.brewer("VanGogh3", n = 32)) +
+  coord_cartesian(ylim = c(-1,1)) +
+  labs(title = "Variación de las lluvias",
+       subtitle = "Cada línea es un estado",
+       caption = "Datos: TerraClimate a través de Google Earth Engine") +
+  theme_classic() +
+  theme(
+    legend.position = "none",
+    plot.title.position = "plot",
+    plot.caption.position = "plot",
+    axis.title = element_blank()
+  )
+```
+
+
+En la gráfica no se ve tan claro como varía la anomlía de precipitación mensual al paso del tiempo, salvo una pequeña ventana en los últimos años (lado izquierdo de la visualización). Para obtener una mejor claridad, se van a agrupar los datos de manera anual en dos estadísticas: mediana (no se ve afectada por los valores extremos) y media.
+
+
+```{r}
+df_climate_date_year_month_nac_ent %>% 
+  filter(cvegeo != "00") %>%
+  group_by(date_year = year(date_year_month),
+           cvegeo) %>%
+  summarise(median_anomaly_pr = median(anomaly_value_perc_precipitation),
+            mean_anomaly_pr = mean(anomaly_value_perc_precipitation, na.rm = T)) %>%
+  ungroup() %>%
+  ggplot(aes(x = date_year,
+             color = cvegeo)) +
+  geom_hline(yintercept = 0) +
+  geom_line(aes(y = median_anomaly_pr),
+            linetype = "dashed",
+            alpha = 0.4) +
+  geom_line(aes(y = mean_anomaly_pr),
+            linetype = "solid",
+            alpha = 0.4) +
+  scale_y_continuous(labels = label_percent()) +
+  scale_x_continuous(breaks = seq(1990,2021,4)) +
+  scale_colour_manual(values = met.brewer("VanGogh3", n = 32)) +
+  coord_cartesian(ylim = c(-1,1)) +
+  labs(title = "Variación de las lluvias",
+       subtitle = "Cada línea es un estado. Datos desagregados por mediana (línea punteada) y media (línea sólida) anuales",
+       caption = "Datos: TerraClimate a través de Google Earth Engine") +
+  theme_classic() +
+  theme(
+    legend.position = "none",
+    plot.title.position = "plot",
+    plot.caption.position = "plot",
+    axis.title = element_blank()
+  )
+```
+
+Con esta nueva vista, se puede ver que tanto la media como la mediana en los últimos 4 años aproximadamente, las anomalías de precipitación de los estads se encuentran por debajo de 0%, es decir, ha llovido menos de lo que se _espera_ o de lo que es _normal_. Este comportamiento también se ve en periodos como entre 1998 – 2001 y 2006 – 2012.
+
+## Comportamiento del Índice de Intensidad de Sequía de Palmer
+
+```{r}
+df_climate_date_year_month_nac_ent %>% 
+  filter(cvegeo != "00") %>%
+  ggplot(aes(x = date_year_month,
+             y = mean_value_pdsi,
+             color = nomgeo)) +
+  geom_hline(yintercept = 0) +
+  geom_line(alpha = 0.4) +
+  scale_x_date(date_breaks = "4 years", labels = label_date_short()) +
+  scale_colour_manual(values = met.brewer("Greek", n = 32)) +
+  coord_cartesian(ylim = c(-6,6)) +
+  labs(title = "Intensidad de Sequía (PDSI)",
+       subtitle = "Cada línea es un estado",
+       caption = "Datos: TerraClimate a través de Google Earth Engine") +
+  theme_classic() +
+  theme(
+    legend.position = "none",
+    plot.title.position = "plot",
+    plot.caption.position = "plot",
+    axis.title = element_blank()
+  )
+```
+
+Similar a las anomalías de precipitación, el Índice de Severidad de Sequía de Palmer (PDSI), no muestra un comportamiento _obvio_ como la temperatura máxima y mínima. Sin embargo, se pueden observar _rachas de meses_ que rondan -4 (indicador de sequía severa) así como en la última decada, valores llegando a -6.
+
+```{r}
+df_climate_date_year_month_nac_ent %>% 
+  filter(cvegeo != "00") %>%
+  group_by(date_year = year(date_year_month),
+           cvegeo) %>%
+  summarise(median_mean_value_pdsi = median(mean_value_pdsi),
+            mean_mean_value_pdsi = mean(mean_value_pdsi, na.rm = T)) %>%
+  ungroup() %>%
+  ggplot(aes(x = date_year,
+             color = cvegeo)) +
+  geom_hline(yintercept = 0) +
+  geom_line(aes(y = median_mean_value_pdsi),
+            linetype = "dashed",
+            alpha = 0.4) +
+  geom_line(aes(y = mean_mean_value_pdsi),
+            linetype = "solid",
+            alpha = 0.4) +
+  scale_colour_manual(values = met.brewer("Greek", n = 32)) +
+  scale_x_continuous(breaks = seq(1990,2021,4)) +
+  coord_cartesian(ylim = c(-6,6)) +
+  labs(title = "Intensidad de Sequía (PDSI)",
+       subtitle = "Cada línea es un estado. Datos desagregados por mediana (línea punteada) y media (línea sólida) anuales",
+       caption = "Datos: TerraClimate a través de Google Earth Engine") +
+  theme_classic() +
+  theme(
+    legend.position = "none",
+    plot.title.position = "plot",
+    plot.caption.position = "plot",
+    axis.title = element_blank()
+  )
+```
+
+Al agrupar los valores por la media y mediana anual, podemos obsvervar también comportamiento similares a las anomalías de lluvia:
+
+- Entre 2014 y 2015 hubieron condiciones de humedad, así como en la gráfica de anomalía de precipitación anual, los valores son en su mayoría, por encima de 0%.
+- Se ve claro que después del 2018, muchos estados registran algun grado de condición de sequía (valores por debajo de -0.5)
+
+## Comportamiento del _Climate Water Déficit_
+
+```{r}
+df_climate_date_year_month_nac_ent %>%
+  filter(cvegeo != "00") %>%
+  ggplot(aes(x = date_year_month,
+             y = zscore_value_def,
+             color = nomgeo)) +
+  geom_hline(yintercept = 0) +
+  geom_line(alpha = 0.4) +
+  scale_x_date(date_breaks = "4 years", labels = label_date_short()) +
+  scale_y_continuous(breaks = c(-3,-2,-1,0,1,2,3,4), labels = label_number(suffix = "σ")) +
+  scale_colour_manual(values = met.brewer("Hokusai2", n = 32)) +
+  coord_cartesian(ylim = c(-3,3)) +
+  labs(title = "Climate Water Déficit",
+       subtitle = "Cada línea es un estado",
+       caption = "Datos: TerraClimate a través de Google Earth Engine") +
+  theme_classic() +
+  theme(
+    legend.position = "none",
+    plot.title.position = "plot",
+    plot.caption.position = "plot",
+    axis.title = element_blank()
+  )
+```
+
+El comportamiento se lee de manera similar al comportamiento de las temperaturas, entre más positivo sea el valor, significa un mayor déficit con respecto a lo esperado o al histórico. Y así como las últimas variables climatológicas, su comportamiento mensual no va hacia la alza pero se pueden ver picos en diferentes periodos.
+
+```{r}
+df_climate_date_year_month_nac_ent %>% 
+  filter(cvegeo != "00") %>%
+  group_by(date_year = year(date_year_month),
+           cvegeo) %>%
+  summarise(median_zscore_value_def = median(zscore_value_def),
+            mean_zscore_value_def = mean(zscore_value_def, na.rm = T)) %>%
+  ungroup() %>%
+  ggplot(aes(x = date_year,
+             color = cvegeo)) +
+  geom_hline(yintercept = 0) +
+  geom_line(aes(y = median_zscore_value_def),
+            linetype = "dashed",
+            alpha = 0.4) +
+  geom_line(aes(y = mean_zscore_value_def),
+            linetype = "solid",
+            alpha = 0.4) +
+  scale_colour_manual(values = met.brewer("Hokusai2", n = 32)) +
+  scale_y_continuous(breaks = c(-3,-2,-1,0,1,2,3,4), labels = label_number(suffix = "σ")) +
+  scale_x_continuous(breaks = seq(1990,2021,4)) +
+  coord_cartesian(ylim = c(-1,3)) +
+  labs(title = "Climate Water Déficit",
+       subtitle = "Cada línea es un estado. Datos desagregados por mediana (línea punteada) y media (línea sólida) anuales",
+       caption = "Datos: TerraClimate a través de Google Earth Engine") +
+  theme_classic() +
+  theme(
+    legend.position = "none",
+    plot.title.position = "plot",
+    plot.caption.position = "plot",
+    axis.title = element_blank()
+  )
+```
+
+Al ver los valores agrupados de manera anual, la mayoría de los estados en los últimos años muestran valores positivos en su comportamiento, es decir, un Déficit Climático del Agua por encima del valor histórico, pero no sobrepasan el valor de 1σ
+
+# Selección de estados de interés
+
+## Condiciones de alarma
+
+Un **estado alarmante** es aquel que cumpla con las condiciones dadas para cada variable climatológica:
+
+- Comportamiento de temperaturas: Aquellos estados que tengan más de 8 meses con un valor por encima de 1.5&sigma; a partir del 2015.
+- Anomalía de precipitación: Aquellos estados que tengan más de 6 meses con menos del -50% de precipitación, a partir del 2015.
+- Índice de Severidad de Sequía de Palmer: Aquellos estados que tengan más de 6 meses con un valor por debajo de -4 a partir del 2015.
+- Comportamiento del Déficit Climático del Agua: Aquellos estados que tengan más de 6 meses con un valor por encima de 1.5&sigma; a partir del 2015.
+
+```{r}
+# DataFrame con las variables y las condiciones de los estados
+df_condiciones_alarma_ent <- df_climate_vars_date_year_month_all_ent %>%
+  mutate(date_month = month(as.numeric(date_month), label = T)) %>%
+  group_by(nomgeo, date_year) %>%
+  summarise(
+    # Condiciones de temperaturas
+    n_meses_condicion_tmmx = sum(if_else(zscore_tmmx_mean > 1.5,1,0)),
+    meses_condicion_tmmx = paste0(na.omit(if_else(zscore_tmmx_mean > 1.5, date_month, NA_character_)), collapse = ","),
+    n_meses_condicion_tmmn = sum(if_else(zscore_tmmn_mean > 1.5,1,0)),
+    meses_condicion_tmmn = paste0(na.omit(if_else(zscore_tmmn_mean > 1.5, date_month, NA_character_)), collapse = ","),
+
+    # Condiciones anomalía de precipitación
+    n_meses_condicion_anom_pr = sum(if_else(anomaly_value_perc_precipitation < -0.5,1,0)),
+    meses_condicion_anom_pr = paste0(na.omit(if_else(anomaly_value_perc_precipitation < -0.5, date_month, NA_character_)), collapse = ","),
+
+    # Condiciones de PDSI
+    n_meses_condicion_pdsi = sum(if_else(mean_value_pdsi < -4,1,0)),
+    meses_condicion_pdsi = paste0(na.omit(if_else(mean_value_pdsi < -4, date_month, NA_character_)), collapse = ","),
+    
+    # Condiciones de CWD
+    n_meses_condicion_def = sum(if_else(zscore_value_def > 1.5,1,0)),
+    meses_condicion_def = paste0(na.omit(if_else(zscore_value_def > 1.5, date_month, NA_character_)), collapse = ",")
+  ) %>% ungroup()
+
+```
+
+## Comportamiento de temperaturas
+
+```{r}
+# Temperaturas máximas
+df_condiciones_alarma_ent %>%
+  select(nomgeo, date_year, n_meses_condicion_tmmx, meses_condicion_tmmx) %>%
+  filter(date_year >= 2015, n_meses_condicion_tmmx >= 8) %>%
+  group_by(date_year) %>%
+  arrange(-n_meses_condicion_tmmx, .by_group = T) %>%
+  rename(`# de meses` = n_meses_condicion_tmmx, Meses = meses_condicion_tmmx) %>%
+  gt(rowname_col = "nomgeo") %>%
+  tab_header(title = html("<b>Estados con comportamiento alarmante de temperatura máxima</b>"),
+             subtitle = html('<em>Comportamiento alarmante significa "más de 8 meses con más de 1.5&sigma; mensual a partir del 2015"</em>')) %>%
+  tab_footnote(footnote = html('Datos: TerraClimate a través de Google Earth Engine'))
+```
+
+```{r}
+# Temperaturas máximas
+df_condiciones_alarma_ent %>%
+  select(nomgeo, date_year, n_meses_condicion_tmmx, meses_condicion_tmmx) %>%
+  filter(date_year >= 2015, n_meses_condicion_tmmx >= 8) %>%
+  count(nomgeo, sort = T) %>%
+  filter(n >= 3) %>%
+  rename(`# de apariciones` = n) %>%
+  gt(rowname_col = "nomgeo") %>%
+  tab_header(title = html("<b>Apariciones de estados en diferentes años</b>"),
+             subtitle = html("<em>Comportamiento de temperatura máxima</em>")) %>%
+  tab_footnote(footnote = html('Datos: TerraClimate a través de Google Earth Engine'))
+```
+
+---
+
+```{r}
+# Temperaturas mínimas
+df_condiciones_alarma_ent %>%
+  select(nomgeo, date_year, n_meses_condicion_tmmn, meses_condicion_tmmn) %>%
+  filter(date_year >= 2015, n_meses_condicion_tmmn >= 8) %>%
+  group_by(date_year) %>%
+  arrange(-n_meses_condicion_tmmn, .by_group = T) %>%
+  rename(`# de meses` = n_meses_condicion_tmmn, Meses = meses_condicion_tmmn) %>%
+  gt(rowname_col = "nomgeo") %>%
+  tab_header(title = html("<b>Estados con comportamiento alarmante de temperatura mínima</b>"),
+             subtitle = html('<em>Comportamiento alarmante significa "más de 8 meses con más de 1.5&sigma; mensual a partir del 2015"</em>')) %>%
+  tab_footnote(footnote = html('Datos: TerraClimate a través de Google Earth Engine'))
+```
+
+```{r}
+# Temperaturas mínimas
+df_condiciones_alarma_ent %>%
+  select(nomgeo, date_year, n_meses_condicion_tmmn, meses_condicion_tmmn) %>%
+  filter(date_year >= 2015, n_meses_condicion_tmmn >= 8) %>%
+  count(nomgeo, sort = T) %>%
+  filter(n >= 3) %>%
+  rename(`# de apariciones` = n) %>%
+  gt(rowname_col = "nomgeo") %>%
+  tab_header(title = html("<b>Apariciones de estados en diferentes años</b>"),
+             subtitle = html("<em>Comportamiento de temperatura mínima</em>")) %>%
+  tab_footnote(footnote = html('Datos: TerraClimate a través de Google Earth Engine'))
+```
+
+---
+
+Entre los estados que más destacan son <b>Chiapas</b> y <b>Oaxaca</b> al estar en los primeros lugares en comportamiento de la temperatura máxima y mínima.
+
+```{r}
+df_climate_date_year_month_nac_ent %>%
+  filter(year(date_year_month) >= 2015) %>%
+  filter(nomgeo %in% c("Chiapas", "Oaxaca")) %>%
+  mutate(cond_highlight = case_when(
+    nomgeo == "Chiapas" & year(date_year_month) %in% c(2015,2016,2017,2019,2020,2021) ~ "true",
+    nomgeo == "Oaxaca" & year(date_year_month) %in% c(2015,2016,2019,2020) ~ "true",
+    T ~ "false"
+  )) %>%
+  ggplot(aes(x = month(date_year_month, label = T),
+             y = zscore_tmmx_mean,
+             color = cond_highlight,
+             group = year(date_year_month))) +
+  geom_hline(yintercept = 0) +
+  geom_hline(yintercept = 1.5, linetype = "dashed") +
+  geom_line() +
+  facet_wrap(vars(nomgeo)) +
+  scale_color_manual(values = c("gray90","red")) +
+  scale_y_continuous(breaks = c(1.5,seq(-2,6,2)), labels = label_number(suffix = "σ")) +
+  labs(title = "Comportamiento mensual de temperatura máxima a partir del 2015",
+       subtitle = "Cada línea es un año. Se resaltan los años con más de 8 meses por encima de 1.5σ",
+       caption = "Datos: TerraClimate a través de Google Earth Engine") +
+  theme_minimal() +
+  theme(
+    panel.spacing.x = unit(0.5,"in"),
+    axis.title = element_blank(),
+    legend.position = "none",
+    plot.title.position = "plot",
+    plot.caption.position = "plot",
+    plot.caption = element_text(hjust = 0)
+  )
+
+```
+
+```{r}
+df_climate_date_year_month_nac_ent %>%
+  filter(year(date_year_month) >= 2015) %>%
+  filter(nomgeo %in% c("Chiapas", "Oaxaca")) %>%
+  mutate(cond_highlight = case_when(
+    nomgeo == "Chiapas" & year(date_year_month) %in% c(2015,2016,2017,2019,2020,2021) ~ "true",
+    nomgeo == "Oaxaca" & year(date_year_month) %in% c(2015,2016,2018,2019,2020) ~ "true",
+    T ~ "false"
+  )) %>%
+  ggplot(aes(x = month(date_year_month, label = T),
+             y = zscore_tmmn_mean,
+             color = cond_highlight,
+             group = year(date_year_month))) +
+  geom_hline(yintercept = 0) +
+  geom_hline(yintercept = 1.5, linetype = "dashed") +
+  geom_line() +
+  facet_wrap(vars(nomgeo)) +
+  scale_color_manual(values = c("gray90","red")) +
+  scale_y_continuous(breaks = c(1.5,seq(-2,6,2)), labels = label_number(suffix = "σ")) +
+  labs(title = "Comportamiento mensual de temperatura mínima a partir del 2015",
+       subtitle = "Cada línea es un año. Se resaltan los años con más de 8 meses por encima de 1.5σ",
+       caption = "Datos: TerraClimate a través de Google Earth Engine") +
+  theme_minimal() +
+  theme(
+    panel.spacing.x = unit(0.5,"in"),
+    axis.title = element_blank(),
+    legend.position = "none",
+    plot.title.position = "plot",
+    plot.caption.position = "plot",
+    plot.caption = element_text(hjust = 0)
+  )
+
+```
+
+
+## Anomalía de precipitación
+
+```{r}
+df_condiciones_alarma_ent %>%
+  select(nomgeo, date_year, n_meses_condicion_anom_pr, meses_condicion_anom_pr) %>%
+  filter(date_year >= 2015, n_meses_condicion_anom_pr >= 6) %>%
+  group_by(date_year) %>%
+  arrange(-n_meses_condicion_anom_pr, .by_group = T) %>%
+  rename(`# de meses` = n_meses_condicion_anom_pr, Meses = meses_condicion_anom_pr) %>%
+  gt(rowname_col = "nomgeo") %>%
+  tab_header(title = html("<b>Estados con comportamiento alarmante de anomalía de precipitación</b>"),
+             subtitle = html('<em>Comportamiento alarmante significa "más de 6 meses con menos de -50% de anomalía mensual a partir del 2015"</em>')) %>%
+  tab_footnote(footnote = html('Datos: TerraClimate a través de Google Earth Engine'))
+```
+
+```{r}
+df_condiciones_alarma_ent %>%
+  select(nomgeo, date_year, n_meses_condicion_anom_pr, meses_condicion_anom_pr) %>%
+  filter(date_year >= 2015, n_meses_condicion_anom_pr >= 6) %>%
+  count(nomgeo, sort = T) %>%
+  filter(n >= 2) %>%
+  rename(`# de apariciones` = n) %>%
+  gt(rowname_col = "nomgeo") %>%
+  tab_header(title = html("<b>Apariciones de estados en diferentes años</b>"),
+             subtitle = html("<em>Anomalía de precipitación</em>")) %>%
+  tab_footnote(footnote = html('Datos: TerraClimate a través de Google Earth Engine'))
+```
+
+De los estados con apariciones en 3 años o más, ninguno de los primeros lugares es Chiapas o Oaxaca, estados con los comportamientos de temperatura más alarmanantes, esto no quiere decir que se descarten o no esten relacionados, quizás en este eje no tienen un comportamiento alarmante. 
+
+```{r}
+#| fig-asp: 0.85
+df_climate_date_year_month_nac_ent %>% 
+  filter(year(date_year_month) >= 2015) %>%
+  filter(nomgeo %in% c("Baja California", "Coahuila de Zaragoza", "Michoac�n de Ocampo","Quere�taro", "San Luis Potos�", "Sinaloa")) %>%
+  mutate(cond_highlight = case_when(
+    nomgeo == "Baja California" & year(date_year_month) %in% c(2017,2020,2021) ~ "true",
+    nomgeo == "Coahuila de Zaragoza" & year(date_year_month) %in% c(2017,2019,2021) ~ "true",
+    nomgeo == "Michoac�n de Ocampo" & year(date_year_month) %in% c(2017,2019,2021) ~ "true",
+    nomgeo == "Quere�taro" & year(date_year_month) %in% c(2017,2019,2021) ~ "true",
+    nomgeo == "San Luis Potos�" & year(date_year_month) %in% c(2017,2019,2021) ~ "true",
+    nomgeo == "Sinaloa" & year(date_year_month) %in% c(2017,2019,2021) ~ "true",
+    T ~ "false"
+  )) %>%
+  ggplot(aes(x = month(date_year_month, label = T),
+             y = anomaly_value_perc_precipitation,
+             color = cond_highlight,
+             group = year(date_year_month))) +
+  geom_line() +
+  geom_hline(yintercept = 0) +
+  geom_hline(yintercept = -0.5, linetype = "dashed") +
+  facet_wrap(vars(nomgeo)) +
+  scale_color_manual(values = c("gray90","red")) +
+  scale_y_continuous(labels = label_percent()) +
+  labs(title = "Anomalía de precipitación mensual a partir del 2015",
+       subtitle = "Cada línea es un año. Se resaltan los años con más de 6 meses por debajo de -50% de anomalía de precipitación",
+       caption = "Datos: TerraClimate a través de Google Earth Engine") +
+  theme_minimal() +
+  theme(
+    panel.spacing.x = unit(0.2,"in"),
+    axis.title = element_blank(),
+    legend.position = "none",
+    plot.title.position = "plot",
+    plot.caption.position = "plot",
+    plot.caption = element_text(hjust = 0)
+  )
+
+```
+
+
+## Índice de Severidad de Sequía de Palmer
+
+```{r}
+df_condiciones_alarma_ent %>%
+  select(nomgeo, date_year, n_meses_condicion_pdsi, meses_condicion_pdsi) %>%
+  filter(date_year >= 2015, n_meses_condicion_pdsi >= 6) %>%
+  group_by(date_year) %>%
+  arrange(-n_meses_condicion_pdsi, .by_group = T) %>%
+  rename(`# de meses` = n_meses_condicion_pdsi, Meses = meses_condicion_pdsi) %>%
+  gt(rowname_col = "nomgeo") %>%
+  tab_header(title = html("<b>Estados con comportamiento alarmante de PDSI</b>"),
+             subtitle = html('<em>Comportamiento alarmante significa "más de 6 meses con menos de -4 de PDSI a partir del 2015"</em>')) %>%
+  tab_footnote(footnote = html('Datos: TerraClimate a través de Google Earth Engine'))
+```
+
+```{r}
+df_condiciones_alarma_ent %>%
+  select(nomgeo, date_year, n_meses_condicion_pdsi, meses_condicion_pdsi) %>%
+  filter(date_year >= 2015, n_meses_condicion_pdsi >= 6)  %>%
+  count(nomgeo, sort = T) %>%
+  filter(n >= 2) %>%
+  rename(`# de apariciones` = n) %>%
+  gt(rowname_col = "nomgeo") %>%
+  tab_header(title = html("<b>Apariciones de estados en diferentes años</b>"),
+             subtitle = html("<em>PDSI</em>")) %>%
+  tab_footnote(footnote = html('Datos: TerraClimate a través de Google Earth Engine'))
+```
+
+
+El estado que resalta es <b>Hidalgo</b>, especialmente en el año 2020, donde un año entero estuvo rondando en valores cercanos o por debajo de un PDSI de -4.
+
+```{r}
+df_climate_date_year_month_nac_ent %>% 
+  filter(year(date_year_month) >= 2015) %>%
+  filter(nomgeo %in% c("Hidalgo")) %>%
+  mutate(cond_highlight = case_when(
+    year(date_year_month) %in% c(2017,2019,2020) ~ "true",
+    T ~ "false"
+  )) %>%
+  ggplot(aes(x = month(date_year_month, label = T),
+             y = mean_value_pdsi,
+             color = cond_highlight,
+             group = year(date_year_month))) +
+  geom_line() +
+  geom_hline(yintercept = 0) +
+  geom_hline(yintercept = -4, linetype = "dashed") +
+  facet_wrap(vars(nomgeo)) +
+  scale_color_manual(values = c("gray90","red")) +
+  labs(title = "PDSI mensual a partir del 2015",
+       subtitle = "Cada línea es un año. Se resaltan los años con más de 6 meses por debajo de un PDSI de -4.",
+       caption = "Datos: TerraClimate a través de Google Earth Engine") +
+  theme_minimal() +
+  theme(
+    panel.spacing.x = unit(0.2,"in"),
+    axis.title = element_blank(),
+    legend.position = "none",
+    plot.title.position = "plot",
+    plot.caption.position = "plot",
+    plot.caption = element_text(hjust = 0)
+  )
+
+```
+
+
+## Comportamiento del Déficit Climático del Agua
+
+```{r}
+df_condiciones_alarma_ent %>%
+  select(nomgeo, date_year, n_meses_condicion_def, meses_condicion_def) %>%
+  filter(date_year >= 2015, n_meses_condicion_def >= 6) %>%
+  group_by(date_year) %>%
+  arrange(-n_meses_condicion_def, .by_group = T) %>%
+  rename(`# de meses` = n_meses_condicion_def, Meses = meses_condicion_def) %>%
+  gt(rowname_col = "nomgeo") %>%
+  tab_header(title = html("<b>Estados con comportamiento alarmante de CWD</b>"),
+             subtitle = html('<em>Comportamiento alarmante significa "más de 6 meses con más de 1.5&sigma; a partir del 2015"</em>')) %>%
+  tab_footnote(footnote = html('Datos: TerraClimate a través de Google Earth Engine'))
+```
+
+```{r}
+df_condiciones_alarma_ent %>%
+  select(nomgeo, date_year, n_meses_condicion_def, meses_condicion_pdsi) %>%
+  filter(date_year >= 2015, n_meses_condicion_def >= 6)  %>%
+  count(nomgeo, sort = T) %>%
+  filter(n >= 2) %>%
+  rename(`# de apariciones` = n) %>%
+  gt(rowname_col = "nomgeo") %>%
+  tab_header(title = html("<b>Apariciones de estados en diferentes años</b>"),
+             subtitle = html("<em>Climate Water Deficit</em>")) %>%
+  tab_footnote(footnote = html('Datos: TerraClimate a través de Google Earth Engine'))
+```
+
+<b>Hidalgo</b> vuelve a hacer aparición, coincidiendo en los años donde se igual registró números bajos de anomalía de precipitación.
+
+```{r}
+df_climate_date_year_month_nac_ent %>% 
+  filter(year(date_year_month) >= 2015) %>%
+  filter(nomgeo %in% c("Hidalgo")) %>%
+  mutate(cond_highlight = case_when(
+    year(date_year_month) %in% c(2017,2019) ~ "true",
+    T ~ "false"
+  )) %>%
+  ggplot(aes(x = month(date_year_month, label = T),
+             y = zscore_value_def,
+             color = cond_highlight,
+             group = year(date_year_month))) +
+  geom_line() +
+  geom_hline(yintercept = 0) +
+  geom_hline(yintercept = -4, linetype = "dashed") +
+  facet_wrap(vars(nomgeo)) +
+  scale_color_manual(values = c("gray90","red")) +
+  labs(title = "Déficit climático del agua mensual a partir de 2015",
+       subtitle = "Cada línea es un año. Se resaltan los años con más de 6 meses por encima 1.5σ",
+       caption = "Datos: TerraClimate a través de Google Earth Engine") +
+  theme_minimal() +
+  theme(
+    panel.spacing.x = unit(0.2,"in"),
+    axis.title = element_blank(),
+    legend.position = "none",
+    plot.title.position = "plot",
+    plot.caption.position = "plot",
+    plot.caption = element_text(hjust = 0)
+  )
+
+```
+
+# Siguientes pasos y conclusiones
+
+Este apartado del trabajo se trabajó únicamente con los datos a los que se ha tenido acceso, pero solo con datos y números no se encuentran soluciones. 
+
+El siguiente paso es platicar los resultados con los reporteros para empezar a reducir la búsqueda a uno o dos estados donde se puedan encontrar a las personas que han emigrado debido al cambio climático.
+
+Se concluye que este tipo de acercamiento con los datos tiene limitantes que en el futuro se podrán solucionar. La principal mejora en la que se trabajará continuamente es **la relación entre la superficie de los estados con las estadísticas obtenidas**: Hay estados con mayor área cuya geografía y condiciones climáticas pueda variar en diferentes regiones, y que al momento de extraer alguna estadística, como la media, pueda tener un sesgo hacia valores extremos – esto aplica para cualquier trabajo usando datos raster. 
+
+Para lidiar con esta limitante se piensan en lo siguiente:
+
+- Mayor número de polígonos: Sea a través de la división de la superficie de la nación en rectangulos o usando los polígonos de los municipios.
+- Técnicas de estadística geoespacial: Existe un campo especializado que se dedica a analizar datos vectoriales y raster, se buscará mentoría y recuros para aprender nuevas maneras de tratar este tipo de datos.

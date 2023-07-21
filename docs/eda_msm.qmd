@@ -1,0 +1,172 @@
+---
+title: "Exploración de datos: Monitor de Sequía de México"
+author: "Isaac Arroyo"
+format:
+  html:
+    reference-location: margin
+    df-print: kable
+    fig-width: 8
+    fig-asp: 0.75
+    fontsize: "1.1em"
+    code-fold: true
+    code-summary: "Código (R)"
+execute:
+  warning: false
+  echo: false
+---
+
+> **Nota**:
+> 
+> Previo a la mejora del código y la obtención de los datos de **TerraClimate** a los más de 2,000 municipios de México, el conjunto de datos con mayor nivel de detalle geográfico era el que proporcionaba el **Monitor de Sequía de México (MSM)** de la CONAGUA. 
+
+```{r}
+library(tidyverse)
+library(gt)
+library(reactable)
+#setwd("./docs/")
+```
+
+Además de las variables climatológicas exploradas y analizadas de **TerraClimate**, se cuenta con el **registro de tipo de sequía** de acuerdo con el **Monitor de Sequía de América del Norte (NADM)** a través del **Monitor de Sequía de México (MSM)**.
+
+Este conjunto de datos lleva consigo diferencias que los datos proporcionados por TerraClimate:
+
+1. Periodo de tiempo: Mientras que TerraClimate tiene información a partir de 1960, el MSM empieza su registro en el 2003, una diferencia de más de 40 años.
+2. Actualización del conjunto de datos: El MSM esta siendo continuamente actualizado, teniendo el registro 2 veces al mes hasta la fecha más actual. Por el contrario, TerraClimate se actualiza de manera anual, por lo que para tener los datos del actual, hay que esperar al siguiente.
+3. Cobertura espacial: La metodología de extracción de datos de TerraClimate cubre únicamente (al momento del desarrollo de este análisis) las geometrías de los estados del país. El MSM tiene información de cada municipio, por lo que se puede tener un mayor detalle de las regiones.
+4. Significado de los valores: Mientras que algunas variables de TerraClimate tienen un transfondo fácil de interpretar (temperatura y lluvia son conceptos con los que todas las personas están familiarizadas), el MSM da categorías que son asignadas mediante un consenso y múltiples variables climatológicas y de la vegetación.
+
+Las principales diferencias se pueden ver como puntos en contra o a favor de cada conjunto de datos, eso dependerá de cada persona. Cada conjunto de datos tiene diferentes cosas que ofrecer y se deben de aprovechar.
+
+# Información general del Monitor de Sequía de México 
+
+## Categorías de sequía
+
+> Información tomada de [**Categorías de Sequía (CONAGUA)**](https://smn.conagua.gob.mx/es/categorias-de-sequia)
+
+1. <span style="background-color:#FFFF00;border-radius:5px;color:black;padding:0.1rem;font-weight:600;">Anormalmente seco (D0)</span>: Se trata de una condición de sequedad, no es una categoría de sequía. Se presenta al inicio o al final de un periodo de sequía. Al inicio de un período de sequía: debido a la sequedad de corto plazo puede ocasionar el retraso de la siembra de los cultivos anuales, un limitado crecimiento de los cultivos o pastos y existe el riesgo de incendios. Al final del período de sequía: puede persistir déficit de agua, los pastos o cultivos pueden no recuperarse completamente.
+2. <span style="background-color:#FFD37F;border-radius:5px;color:black;padding:0.1rem;font-weight:600;">Sequía Moderada (D1)</span>: Se presentan algunos daños en los cultivos y pastos; existe un alto riesgo de incendios, bajos niveles en ríos, arroyos, embalses, abrevaderos y pozos, se sugiere restricción voluntaria en el uso del agua.
+3. <span style="background-color:#E69800;border-radius:5px;color:black;padding:0.1rem;font-weight:600;">Sequía Severa (D2)</span>: Probables pérdidas en cultivos o pastos, alto riesgo de incendios, es común la escasez de agua, se deben imponer restricciones en el uso del agua.
+4. <span style="background-color:#E60000;border-radius:5px;color:white;padding:0.1rem;font-weight:600;">Sequía Extrema (D3)</span>: Pérdidas mayores en cultivos y pastos, el riesgo de incendios forestales es extremo, se generalizan las restricciones en el uso del agua debido a su escasez.
+5. <span style="background-color:#730000;border-radius:5px;color:white;padding:0.1rem;font-weight:600;">Sequía Excepcional (D4)</span>: Pérdidas excepcionales y generalizadas de cultivos o pastos, riesgo excepcional de incendios, escasez total de agua en embalses, arroyos y pozos, es probable una situación de emergencia debido a la ausencia de agua.
+
+## Metodología del Servicio Meteorológico Nacional para el Monitor de Sequía de México
+
+> Información toamda de [**Monitor de Sequía de México (CONAGUA)**](https://smn.conagua.gob.mx/es/climatologia/monitor-de-sequia/monitor-de-sequia-en-mexico)
+
+Aun cuando el MSM inició en México en 2002 dentro de las actividades del NADM, fue hasta el año de 2014 que adquirió su carácter nacional, lo que le permitió emitir mapas de sequía en escala de tiempo diferente a la mensual, siempre basada en la metodología utilizada por el USDM y el NADM. A partir de febrero de 2014 la emisión del MSM es quincenal.
+
+Se basa en la obtención e interpretación de diversos índices o indicadores de sequía tales como el Índice Estandarizado de Precipitación (SPI) que cuantifica las condiciones de déficit o exceso de precipitación (30, 90, 180, 365 días), Anomalía de Lluvia en Porciento de lo Normal (30, 90, 180, 365 días), Índice Satelital de Salud de la Vegetación (VHI) que mide el grado de estrés de la vegetación a través de la radiancia observada, el Modelo de Humedad del Suelo Leaky Bucket CPC-NOAA que estima la humedad del suelo mediante un modelo hidrológico de una capa, el Índice Normalizado de Diferencia de la Vegetación (NDVI), la Anomalía de la Temperatura Media, el Porcentaje de Disponibilidad de Agua en las presas del país y la aportación de expertos locales. Estos índices se despliegan en capas o layers a través de un Sistema de Información Geográfica (SIG) y mediante un consenso se determinan las regiones afectadas por sequía, de acuerdo a la escala de intensidades que es común en los tres países que va desde anormalmente seco (D0), sequía moderada (D1), sequía severa (D2), sequía extrema (D3) hasta sequía excepcional (D4). Como resultado del consenso se trazan polígonos para cada intensidad de sequía, generando archivos tipo shapefile. Cuando los polígonos corresponden al análisis de mediados de mes (emitido los días 15 de cada mes) se utilizan para cuantificar la sequía sobre el territorio nacional y cuando corresponden a la evaluación final de cualquier mes complementa además al mapa regional o continental del NADM.
+
+# Comparación de rachas máximas de sequías 
+
+El conjunto de datos del **Monitor de Sequía de México** es un archivo Excel (XLSX) donde cada fila es un municipio del país y las columnas son las fechas (previo al 2014 son registros mensuales, y después son registros cada 2 semanas, aproximadamente). Por lo que se tuvo que cambiar la _forma_ del conjunto de datos para calcular las rachas y las rachas máximas de cada tipo de sequía en los municipios.
+
+```{r}
+nom_mun_ent <- read_csv("./../datos/ee_terraclimate_db/ts_nac-ent-mun_year_terraclimate.csv") %>%
+  select(nombre_estado, nombre_municipio, cve_geo) %>%
+  filter(nombre_municipio != "Estados_Nacionales") %>%
+  distinct() %>%
+  mutate(cve_geo = factor(cve_geo))
+
+fct_cve_geo <- nom_mun_ent$cve_geo
+
+# = = Time series de rachas de sequía = = #
+df_msm_rachas <- read_csv("./../datos/msm/rachas_sequia_municipios.csv") %>%
+  rename(cve_geo = cve_concatenada) %>%
+  mutate(cve_geo = if_else(cve_geo < 10000, paste0("0",cve_geo), as.character(cve_geo))) %>%
+  left_join(nom_mun_ent, by = join_by(cve_geo)) %>%
+  relocate(nombre_estado, .after = cve_geo) %>%
+  relocate(nombre_municipio, .after = nombre_estado) %>%
+  mutate(cve_geo = factor(cve_geo, levels = levels(fct_cve_geo)))
+
+# = = Muestra de 5 elementos = = #
+df_msm_rachas %>%
+  select(nombre_estado, nombre_municipio, sequia, racha_meses, full_date_start_racha, full_date_end_racha) %>%
+  rename("Estado" = nombre_estado,
+         "Municipio" = nombre_municipio,
+         "Tipo de sequía" = sequia,
+         "Duración (meses)" = racha_meses,
+         "Fecha de inicio" = full_date_start_racha,
+         "Fecha de fin" = full_date_end_racha) %>%
+  slice_sample(n = 5) %>%
+  gt()
+```
+
+## Comparación de rachas máximas en Oaxaca 
+Tanto Oaxaca como Hidalgo son estados con un comportamiento por encima de lo normal en cuestión de temperaturas, con categorías del Índice de Severidad de Sequía de Palmer cercanos a "Sequía extrema" así como un Índice de Intensidad Migratoria México–Estados Unidos "Alta", por lo que son estados a los que se les dará mayor atención, principalmente a **Oaxaca**.
+
+De las personas que han sido desplazadas por los efectos del cambio climático son los habitantes de Metztitlán, Hidalgo, al secarse la laguna de nuevo.
+
+### Rachas máximas de sequía previo a Enero 2013 y después de Enero 2013 (hasta Diciembre 2022)
+
+Uno de los comentarios que más se mencionan de la crisis climática es como las sequías son más largas o más intensas. Para poder observar estos cambios a partir de los datos, se compararán las rachas de sequía más grandes que tuvieron los municipios en dos grupos diferentes de mismo periodo de tiempo: de 2003-2012 y 2013-2022.
+
+Los municipios de interés, son aquellos que hayan pasado recientemente por rachas amplias de sequías que antes era menor el tiempo o no hubo algun registro de ese tipo de sequía. 
+
+```{r}
+# = = Valores pre 2013 = = #
+df_msm_rachas_pre <- df_msm_rachas %>%
+  filter(full_date_start_racha <= ymd(20121231)) %>%
+  group_by(nombre_estado, nombre_municipio, cve_geo, sequia) %>%
+  summarise(
+    racha_max_meses_pre = max(racha_meses),
+    #racha_min_meses_pre = min(racha_meses),
+    #racha_mean_meses_pre = mean(racha_meses, na.rm = TRUE),
+    fecha_start_max_pre = full_date_start_racha[which.max(racha_meses)],
+    fecha_end_max_pre = full_date_end_racha[which.max(racha_meses)]
+  ) %>% ungroup()
+
+
+# = = Valores post-2013 (hasta dic-2022) = = #
+df_msm_rachas_post <- df_msm_rachas %>%
+  filter(full_date_start_racha > ymd(20121231),
+         full_date_start_racha <= ymd(20221231)) %>%
+  group_by(nombre_estado, nombre_municipio, cve_geo, sequia) %>%
+  summarise(
+    racha_max_meses_post = max(racha_meses),
+    #racha_min_meses_post = min(racha_meses),
+    #racha_mean_meses_post = mean(racha_meses, na.rm = TRUE),
+    fecha_start_max_post = full_date_start_racha[which.max(racha_meses)],
+    fecha_end_max_post = full_date_end_racha[which.max(racha_meses)]
+  ) %>% ungroup()
+
+# = = = Combinar ambos conjuntos de datos = = = #
+
+df_msm_rachas_cambios <- full_join(
+  x = df_msm_rachas_pre,
+  y = df_msm_rachas_post,
+  by = join_by(nombre_estado, nombre_municipio, cve_geo, sequia)) %>%
+  replace_na(replace = list(racha_max_meses_pre = 0, racha_max_meses_post = 0
+                           # racha_min_meses_pre = 0, racha_min_meses_post = 0,
+                           # racha_mean_meses_pre = 0, racha_mean_meses_post = 0,
+                            )) %>%
+  mutate(diff_racha_max = racha_max_meses_post - racha_max_meses_pre,
+         #diff_racha_min = racha_min_meses_post - racha_min_meses_pre,
+         #dfif_racha_mean = racha_mean_meses_post - racha_mean_meses_pre,
+         )
+```
+
+
+```{r}
+df_msm_rachas_cambios %>%
+  filter(sequia != "Sin sequia",
+         fecha_start_max_post >= ymd(20200101),
+         nombre_estado == "Oaxaca") %>%
+  group_by(sequia) %>%
+  slice_max(order_by = diff_racha_max, n = 5) %>%
+  select(sequia, nombre_municipio, racha_max_meses_post,fecha_start_max_post, diff_racha_max) %>%
+  rename("Duración (meses)" = racha_max_meses_post,
+         "Fecha de inicio" = fecha_start_max_post,
+         "Incremento de la duración con respecto al periodo pasado (meses)" = diff_racha_max) %>%
+  gt(rowname_col = "nombre_municipio") %>%
+  tab_header(title = gt::html("<strong>Incremento de sequía en municipios de Oaxaca</strong>"),
+             subtitle = gt::html("<em>Se muestran los incrementos con los incrementos más grandes del conjunto de datos</em>")) %>%
+  tab_footnote(footnote = gt::html("Datos: Monitor de Sequia de México. Corte a Junio 2023.<br><br>Aquellos datos cuyos valores de la columna <em>Duración (meses)</em> e <em>Incremento de la duración con respecto al periodo pasado (meses)</em> significa que el municipio no tenía ese tipo de sequía registrada"))
+```
+
+
+# Siguientes pasos y conclusiones
+
+El siguiente paso que siempre esta presente es compartir lo que se encontraron con los datos para investigar más fondo los municipios seleccionados.
+
+La metodología para este tipo de datos puede mejorarse al hacer peticiones automáticas del documento a la página oficial del MSM, de esta manera se pueden crear notificaciones cuando un municipio supere un racha máxima histórica.

@@ -1,0 +1,245 @@
+---
+title: "Exploración de variables: TerraClimate"
+author: "Isaac Arroyo"
+format:
+  html:
+    reference-location: margin
+    df-print: kable
+    fig-width: 8
+    fig-asp: 0.75
+    fontsize: "1.1em"
+    code-fold: true
+    code-summary: "Código (R)"
+execute:
+  warning: false
+---
+
+> **Nota**  
+> La exploración y análisis de los datos tuvo corte cuando la actualización más reciente de las variables climatológicas de TerraClimate era hasta el 2021. La actualización de TerraClimate al 2022 fue aproximadamente un mes depués.
+
+
+```{r}
+library(tidyverse)
+library(gt)
+library(factoextra)
+library(MetBrewer)
+library(GGally)
+library(patchwork)
+#setwd("./docs/")
+```
+
+## Carga y concatenación de datos
+
+```{r LOAD-PROCESS_DATA_TERRA-CLIMATE}
+path_zscore_temp_max <- "./../datos/ee_terraclimate_imports/ts_zscore_tmmx_mean_ent_month_terraclimate.csv"
+path_zscore_temp_min <- "./../datos/ee_terraclimate_imports/ts_zscore_tmmn_mean_ent_month_terraclimate.csv"
+path_anomalies_pr <- "./../datos/ee_terraclimate_imports/ts_anomaly_pr_mean_ent_month_terraclimate.csv"
+path_zscore_def <- "./../datos/ee_terraclimate_imports/ts_zscore_def_mean_ent_month_terraclimate.csv"
+path_mean_pdsi <- "./../datos/ee_terraclimate_imports/ts_pdsi_mean_ent_month_terraclimate.csv"
+ignore_columns <- c("system:index",".geo")
+
+# - - #
+temp_max_zscore <- read_csv(path_zscore_temp_max) %>%
+  select(!ignore_columns) %>%
+  pivot_longer(cols = 1:12, names_to = "date_month", values_to = "zscore_tmmx_mean") %>%
+  janitor::clean_names()
+
+temp_min_zscore <- read_csv(path_zscore_temp_min) %>%
+  select(!ignore_columns) %>%
+  pivot_longer(cols = 1:12, names_to = "date_month", values_to = "zscore_tmmn_mean") %>%
+  janitor::clean_names()
+
+precipitation_anomalies <- read_csv(path_anomalies_pr) %>%
+  select(!ignore_columns) %>%
+  pivot_longer(cols = 1:12, names_to = "date_month", values_to = "anomaly_value_perc_precipitation") %>%
+  janitor::clean_names()
+
+def_zscore <-read_csv(path_zscore_def) %>%
+  select(!ignore_columns) %>%
+  pivot_longer(cols = 1:12, names_to = "date_month", values_to = "zscore_value_def") %>%
+  janitor::clean_names()
+
+pdsi_mean <- read_csv(path_mean_pdsi) %>%
+  select(!ignore_columns) %>%
+  pivot_longer(cols = 1:12, names_to = "date_month", values_to = "mean_value_pdsi") %>%
+  janitor::clean_names()
+
+df_climate_vars_date_year_month_all <- temp_max_zscore %>% select(!cve_ent) %>%
+  left_join(temp_min_zscore %>% select(!c(nomgeo,cve_ent)),
+            by = join_by(cvegeo, date_year, date_month)) %>%
+  left_join(precipitation_anomalies %>% select(!c(nomgeo,cve_ent)),
+            by = join_by(cvegeo, date_year, date_month)) %>%
+  left_join(def_zscore %>% select(!c(nomgeo,cve_ent)),
+            by = join_by(cvegeo, date_year, date_month)) %>%
+  left_join(pdsi_mean %>% select(!c(nomgeo,cve_ent)),
+            by = join_by(cvegeo, date_year, date_month)) %>% 
+  filter(date_year <= 2021)
+```
+
+
+## Variables climatológicas a explorar
+
+Como primer acercamiento se observan las siguientes variables de **TerraClimate**:
+
+- **Z-score (mensual) de temperatura máxima, mínima y el _Climate Water Déficit_**[^def_meaning]: Calculado como $\frac{\mu_{\text{h}} - x_i}{\sigma_{\text{h}}}$. Donde $x_i$ es el valor de variable climática de una región en un determinado mes y año. No tiene unidades ya que describe a cuántas $\sigma_{\text{h}}$ se encuentra una instancia del promedio histórico, entre más grande sea el valor más lejos está. Valores negativos grandes significan menores que las históricas y viceversa. Ayudan a analizar sin preocuparnos por si algún valor es lo suficientemente significativo con respecto al histórico.
+- **Anomalía (mensual) de precipitación**: Calculada como $\frac{x_{i_{\text{pr}}}}{\mu_{\text{hist}_{\text{pr}}}} - 1$ donde $x_{i_{\text{pr}}}$ es la precipitación de una región en un determinado mes y año, $\mu_{\text{hist}_{\text{pr}}}$ es la precipitación promedio historica (de aproximadamente 30 años) de esa región en ese determinado mes.
+- **Índice de Severidad de Sequía de Palmer (mensual)**: Escrito comúnmente por sus siglas en inglés PDSI (_Palmer's Drought Severity Index_), es uno de los indicadores de sequía más populares el cual no tiene unidades (es simplemente el número). Toma en cuenta otras variables climatológicas tales como temperatua, precipitación y un modelo de balance físico del agua. Sus valores son negativos y positivos:
+  - **Valores negativos indican condiciones de sequía**, siendo -4 un valor para condiciones de alta sequía.
+  - **Valores positivos indican condiciones de humedad**, suendo 4 un valor para condiciones de alta humedad.
+  - **Valores cercanos a cero indican condiciones normales**.
+
+
+[^def_meaning]: _Climate Water Deficit_ puede ser pensado como la cantidad de agua que pudo haber sido evaporada o transpirada (usada) de haber estado disponible en la tierra dada a la temperatura. Este cálculo es un estimado del estrés de sequía en los suelos y plantas.
+
+## Relación entre variables y aporte de información
+
+Dentro de la exploración de los datos en la Ciencia de Datos, una de las técnicas que se usa es la reducción de variables a través de diferentes criterios. En este trabajo se explorarán tres criterios:
+
+- Correlación: _Eliminar_ una variable de un par (de variables) con alta correlación.
+- Varianza: 
+- Análisis de Componentes Principales (PCA)
+
+### Correlación + Varianza
+
+Observar la correlación entre las variables, permitirá principalmente _eliminar_ una de las variables:
+
+_Se tiene un conjunto de datos con tres variables (o columnas). Se pondrá atención a la variable **a**, ya que tiene una correlación de 0.98 con la variable **b** y 0.2 con la variable **c**. Por lo que la variable **a** y **b** tienen un comportamiento y mutuamente dan bastante información la una con la otra, por lo que dejar a un lado una de ella no se pierde información_
+
+```{r}
+df_climate_vars_date_year_month_all %>%
+  select(zscore_tmmx_mean, zscore_tmmn_mean, anomaly_value_perc_precipitation, zscore_value_def, mean_value_pdsi) %>% 
+  rename(`Comportamiento de Temperatura Mínima` = zscore_tmmx_mean,
+         `Comportamiento de Temperatura Máxima` = zscore_tmmn_mean,
+         `Anomalía de Precipitación (%)` = anomaly_value_perc_precipitation,
+         `Comportamiento de Deficit Climático del Agua` = zscore_value_def,
+         `Promedio de Índice de Severidad de Sequía de Palmer` = mean_value_pdsi) %>%
+  corrr::correlate(diagonal = NA_real_) %>%
+  mutate(across(where(is.numeric), function(x) round(x, 3))) %>%
+  gt(rowname_col = "term") %>%
+  tab_header(title = html("<b>Correlación entre las variables climáticas</b>"),
+             subtitle = html("Valores cercanos a -1 o 1 muestran <em>mayor relación</em> entre el par de variables")) %>% 
+  opt_align_table_header(align = "left") %>%
+  data_color(columns = everything(),
+             method = "numeric",
+             palette = met.brewer(name = "OKeeffe1",n = 21)[1:21],
+             domain = c(-1,1)
+             )
+```
+
+Sin embargo, solo viendo números no es suficiente, por lo que hay que poder ver las correlaciones
+
+```{r}
+df_climate_vars_date_year_month_all %>%
+  select(zscore_tmmx_mean, zscore_tmmn_mean, anomaly_value_perc_precipitation, zscore_value_def, mean_value_pdsi) %>% 
+  rename(`Comportamiento de Temperatura Mínima` = zscore_tmmx_mean,
+         `Comportamiento de Temperatura Máxima` = zscore_tmmn_mean,
+         `Anomalía de Precipitación (%)` = anomaly_value_perc_precipitation,
+         `Comportamiento de Deficit Climático del Agua` = zscore_value_def,
+         `Promedio de Índice de Severidad de Sequía de Palmer` = mean_value_pdsi) %>% 
+  ggpairs()
+```
+
+El gráfico anterior muestra los _scatter plots_ del conjunto de datos así como gráfico de densidad, por lo que podemos _ver_ las correlaciones así como la distribución de cada variable, y en esa distribución, se observa la **varianza**.
+
+A partir de la correlación no se puede tomar una decisión de _eliminar_ a una variable, sin embargo, se enlistan observaciones importantes a partir de la _observar la forma_ de las distribuciones:
+
+- La distribución de Déficit Climático del Agua tiene una alta concentración alrededor del cero. Tiene un 5% de sus datos muy por encima de 1.5 y el 50% de los datos se encuentra ente los valores -0.46 y 0.65.
+
+```{r}
+df_climate_vars_date_year_month_all %>%
+  summarise(std_def = sd(zscore_value_def),
+            mean_def = mean(zscore_value_def),
+            median_def = median(zscore_value_def),
+            p05 = quantile(zscore_value_def, 0.05),
+            p25 = quantile(zscore_value_def, 0.25),
+            p75 = quantile(zscore_value_def, 0.75),
+            p95 = quantile(zscore_value_def, 0.95))
+```
+
+- Las anomalías de precipitación tienen una forma similar, con el **5% de los datos** encima de una anomalía de precipitación mensual de 140%.
+
+```{r}
+df_climate_vars_date_year_month_all %>%
+  summarise(std_def = sd(anomaly_value_perc_precipitation),
+            mean_def = mean(anomaly_value_perc_precipitation),
+            median_def = median(anomaly_value_perc_precipitation),
+            p05 = quantile(anomaly_value_perc_precipitation, 0.05),
+            p25 = quantile(anomaly_value_perc_precipitation, 0.25),
+            p75 = quantile(anomaly_value_perc_precipitation, 0.75),
+            p95 = quantile(anomaly_value_perc_precipitation, 0.95))
+```
+
+- Observando la forma del **Índice de Severidad de Sequía de Palmer** se ven dos picos, uno en el rango de valores negativos (condiciones de sequía) y el otro en el rango de valores positivos (condiciones de humedad), siendo el primero el más grande, es decir, hay una mayor concentración de datos negativos que positivos.
+
+```{r}
+df_climate_vars_date_year_month_all %>%
+  ggplot(aes(x = mean_value_pdsi)) +
+  stat_density() +
+  theme_classic()
+```
+
+### PCA
+
+El Análisis de Componentes Principales (PCA, por sus siglas en inglés) permite crear variables _artificiales_ que son una **representación** del conjunto real de todos los datos. Es una técnica matemática para reducir las dimensiones de conjuntos de datos, por ejemplo, representar un conjunto de datos de 10,000 filas y 10 columnas, a uno de 10,000 filas y 2 columnas.
+
+El objetivo de PCA es encontrar la mejor representación de los datos conservando la mayor cantidad de información posible. Para conservar la mayor cantidad de información **PCA maximiza la varianza de los datos**. Es decir, toma en cuenta la varianza de las variables para crear los componentes principales.
+
+Los valores de las nuevas columnas de un conjunto de datos resultante de un PCA no tienen algún significado específico. Se pueden ver como coordenadas en un espacio diferentes al del conjunto de datos original.
+
+Para esta situación, se usa PCA para representar en dos dimensiones un conjunto de datos de 5 variables/columnas y saber que variables son más representativas (brindan mayor información)
+
+```{r}
+df_estandarizacion_pca <- df_climate_vars_date_year_month_all %>%
+  select(where(is.numeric)) %>%
+  select(!date_year) %>%
+  scale()
+
+# PCA 
+data_pca <- princomp(df_estandarizacion_pca)
+```
+
+La variabilidad explicada por cada componente se muestra en la siguiente figura:
+
+```{r}
+fviz_screeplot(data_pca, addlabels = T)
+```
+
+Donde se se tiene que, para representar el 82% del conjunto de datos se necesitan **los primeros tres Componentes Principales**.
+
+Ahora, ¿qué variabes contribuyen más a esa información?
+
+```{r}
+#| fig-asp: 1.3
+(fviz_contrib(data_pca, choice = "var", axes = 1) | fviz_contrib(data_pca, choice = "var", axes = 2) | fviz_contrib(data_pca, choice = "var", axes = 3))/fviz_contrib(data_pca, choice = "var", axes = 1:3)
+```
+
+En cada componente, las variables contribuyen de manera distinta, algo que se debe tomar en cuenta es lo siguiente:
+
+- El Z-score del Déficit Climático del Agua tiene una variabilidad sesgada, ya que cuenta con valores extremos.
+- El primer componente es el que tiene mayor porcentaje de representación del conjunto de datos (+40%), por lo que ahí se encuentran contribuciones representativas de más de una variable, a diferencia de los siguientes componentes.
+
+## Conclusiones
+
+**Déficit Climático del Agua**
+
+A pesar de que el Déficit Climático del Agua haya sido la variable con mayor aporte en el primer componente principal, es importante tomar en cuenta que los valores extremos, afectan a la media y la media es usada para calcular la varianza, por lo que no se le tomará mucho peso al momento de seleccionar/encontrar los estados de interés.
+
+**Índice de Severidad de Sequía de Palmer**
+
+El PDSI figura como el mayor contribuyente en el tercer componente principal (PCA3), sin embargo, el éste solamente representa un 14.6% del total de los datos, así que a pesar de que para el PCA3 y para la combinación de los primeros tres PCA, el PCA1 es el componente con más información representativa del conjunto de datos, y para ese no figura con contribuciones significativas.
+
+No obstante, se tomará en cuenta para complementar los datos del **Monitor de Sequía de México** así como para su visualización a través de mapas.
+
+Es importante resaltar que de los dos valores más frecuentes del conjunto de datos (picos en el gráfico de densidad), el rango de valores frecuentes más grandes se encuentra en los valores negativos (condiciones de sequía moderadas-intensas).
+
+**Anomalía de precipitación**
+
+Es de las variables que en PCA1, contribuye más, además de que es de las variables climatológicas que son más fáciles de entender (la lluvia es algo que ves). Sin embargo, la distribución de los valores, así como el Déficit Climático del Agua, cuenta con anomalías que afectan a la varianza.
+
+Se le tomará importancia, ya que los patrones de lluvia son elmentos importantes al observar los efectos del cambio climático y por la familiaridad de transmitir los resultados, tanto dentro del equipo así como para la presentación ante el público general.
+
+**Anomalía de temperatura máxima y mínima**
+
+Las anomalías de temperatura son los indicadores más populares cuando se habla del calentamiento global y el cambio climático.
+
+Para este conjunto de datos, la temperatura máxima figura entre las variables climatológicas con mayor contribución en PCA1, así que será la principal y primera variable a la cual se tomará en cuenta para la selección de variables.
