@@ -1,4 +1,4 @@
-# Datos: Documentación
+# Documentación de extracción de los datos
 
 En este apartado se explica el proceso de la extracción y transformación de de los datos usados para el proyecto.
 
@@ -40,7 +40,7 @@ Las variables a las que se les calculará las anomalías son a las de **temperat
 
 La **anomalía de temperatura máxima y mínima** es la cantidad de grados Celsius (°C) que se encuentra una determinada región en un tiempo determinado con respecto al promedio histórico. Valores positivo significa que hay mayor temperatura y valores negativos que hay menor temperatura.
 
-$$\text{anomalia}_{T} = x_{i_{T}} - \mu_{\text{hist}}$$
+$$\text{anomalia de temperatura} = x_{i_{T}} - \mu_{\text{hist}}$$
 
 Donde:
 
@@ -49,7 +49,7 @@ Donde:
 
 Mientras que, la **anomalía de precipitación** mide la diferencia relativa de la precipitación, es decir, calcula la proporción de precipitación de un determinado mes con respecto al promedio histórico (de ese mes): valores positivos significa que ha llovido más que lo esperado/promedio y valores negativos, lo contrario.
 
-$$\text{anomalia}_{\text{pr}} = \frac{x_{i_{\text{pr}}} - \mu_{\text{hist}_{\text{pr}}}}{\mu_{\text{hist}_{\text{pr}}}} = \frac{x_{i_{\text{pr}}}}{\mu_{\text{hist}_{\text{pr}}}} - 1$$
+$$\text{anomalia de precipitación} = \frac{x_{i_{\text{pr}}}}{\mu_{\text{hist}_{\text{pr}}}} - 1$$
 
 - $x_{i_{\text{pr}}}$ es la precipitación de una región en un determinado mes 
 - $\mu_{\text{hist}_{\text{pr}}}$ es la precipitación promedio historica de esa región en ese determinado mes.
@@ -114,7 +114,7 @@ Con esta forma se calculan las rachas (el tiempo en meses, de la presencia de un
 
 Para la creación de mapas, así como para crear los límites de la extracción de datos de TerraClimate en Google Earth Engine, se tuvieron que usar datos vectoriales. Este tipo de dato almacena información de puntos que forman geometrías que delimitan las divisiones de las naciones, estados y municipios de un país.
 
-Para el caso de México, se descargaron del Marco Geoestadístico 2022 del INEGI a través de su portal.
+Para el caso de México, se descargaron del [Marco Geoestadístico, Edición 2022](https://www.inegi.org.mx/app/biblioteca/ficha.html?upc=889463770541) del INEGI a través de su portal.
 
 Los datos _crudos_ de la división de los estados y de los municipios se subieron como un proyecto en la nube de Google Earth Engine para que estén a disposición pública. 
 
