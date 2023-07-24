@@ -2,7 +2,7 @@
 
 En este apartado se explica el proceso de la extracción y transformación de de los datos usados para el proyecto.
 
-> Si encuentras algún error/_bug_ o quisieras recomendar alguna mejora, puedes levantar un _issue_ o enviarme un correo directamente
+> Si encuentras algún error/_bug_ o quisieras recomendar alguna mejora, puedes levantar un _issue_ 
 
 ## TerraClimate a través de Google Earth Engine
 
