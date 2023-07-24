@@ -2,7 +2,7 @@
 
 Este trabajo usó las variables climatológicas de temperatura, sequía y lluvia en México para definir los estados y municipios que han sido más afectados por la crisis climática. En el caso de Santiago Pinotepa Nacional fue por un periodo de más de 10 meses de sequía severa (D2, de acuerdo con el Monitor de Sequía de México) en el 2020, un tipo de sequía que no tuvo registro de esa magnitud en años anteriores.
 
-> Disponible en el siguiente enlace → [Reportaje interactivo de "Desplazamiento Climático: La migración que no vemos"](https://investigaciones.nmas.com.mx/desplazamiento-climatico-la-migracion-que-no-vemos/)
+> Reportaje interactivo disponible en el siguiente enlace → [Reportaje interactivo "Desplazamiento Climático: La migración que no vemos"](https://investigaciones.nmas.com.mx/desplazamiento-climatico-la-migracion-que-no-vemos/)
 
 ## Recopilación de los datos
 
